@@ -14,6 +14,32 @@
     W: 0
 
 - id: 1
+  name: kv_cache_write
+  operator_type: MemoryWrite
+  equation: O[b][l][d]=I[b][l][d]
+  loop_dims: [B, L, D]
+  loop_sizes: [8, 4096, 1024]
+  operand_precision:
+    I: 8
+    O: 8
+  operand_source:
+    I: 0
+    O: 1  # Write to DRAM
+
+- id: 2
+  name: kv_cache_read
+  operator_type: MemoryRead
+  equation: O[b][l][d]=I[b][l][d]
+  loop_dims: [B, L, D]
+  loop_sizes: [8, 4096, 1024]
+  operand_precision:
+    I: 8
+    O: 8
+  operand_source:
+    I: 1  # Read from DRAM
+    O: 0
+
+- id: 3
   name: feedforward_expand
   operator_type: Gemm
   equation: O[b][k][d]=W[k][c]*I[b][c][d]

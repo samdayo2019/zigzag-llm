@@ -21,6 +21,7 @@ from src.util import (
     get_onnx_path,
 )
 
+from copy import deepcopy
 
 def run_simulation(
     model: LLMConfig,
@@ -37,25 +38,37 @@ def run_simulation(
     pickle_filename: str | None = None,
 ):
     assert model.num_layer >= 1, "Is this a `simulatable` config?"
-    model_for_simulation = model.to_simulatable_config()
+    model_for_simulation = model.to_simulatable_config() #Get new config with reduced parameters (full query heads, full key-value heads, 1 layer)
+    # model_for_simulation = deepcopy(model)
 
     if experiment_id is None:
+        # extract experiment id from model, stage, quant, accelerator_name
         experiment_id = get_experiment_id(model, stage, quant, accelerator_name)
 
     if onnx_path is None:
+        # extract onnx save path from model, stage, quant
         onnx_path = get_onnx_path(model_for_simulation, stage, quant)
 
     if dump_path is None:
+        # extract dump path from output_dir, experiment_id
         dump_path = f"{output_dir}/{experiment_id}"
 
     if pickle_filename is None:
-        pickle_filename = f"{dump_path}/cmes.pickle"
+        # Pickle file name default None, so we generate dump path
+        pickle_filename = f"{dump_path}/cmes.pickle" # which layers to include in the cost model
 
-    print(f"--- Running {experiment_id} ---")
+    # print(f"--- Testing New Simulation. Here is KV Heads {model.num_kv_heads} ---")
+    # print(f"--- Running {experiment_id} ---")
+    # print(f"--- Pickle file: {pickle_filename} ---")
+    
+    print(f"--- Model layers: {model_for_simulation.num_layer} ---")
+    print(f"--- Model query heads: {model_for_simulation.num_query_heads} ---")
 
     if not os.path.exists(onnx_path):
+        # if the onnx file does not exist, create it
         export_transformer_to_onnx(model_for_simulation, quant, path=onnx_path, stage=stage)
 
+    # use the Zigzag API to get the hardware performance
     api.get_hardware_performance_zigzag(
         workload=onnx_path,
         accelerator=get_accelerator_path(accelerator_name),
@@ -63,13 +76,14 @@ def run_simulation(
         opt=opt_criterion,
         dump_folder=dump_path,
         pickle_filename=pickle_filename,
-        nb_spatial_mappings_generated=3,
+        nb_spatial_mappings_generated=10, # get 10 spatial mappings
     )
 
     with open(pickle_filename, "rb") as fp:
         cmes = pickle.load(fp)
 
     # Plots for single layers
+    # print(f" Original CMEs: {cmes}")
     cmes_to_plot = get_cmes_to_plot(cmes)
     bar_plot_cost_model_evaluations_breakdown(cmes, save_path=f"{dump_path}/all_layers_single.png")
     bar_plot_cost_model_evaluations_breakdown(cmes_to_plot, save_path=f"{dump_path}/interesting_layers_single.png")

@@ -1,0 +1,105 @@
+name: generic_array_tensor
+
+# 940 MHz
+# 256x256 systolic array
+# 16 GB @ 8 TB/s on-chip buffer for tensor parallelism
+# Pure on-chip architecture - no DRAM
+
+# Energy values
+# SRAM: 1 pJ/bit
+# RF:   0.01 pJ/bit
+# MAC:  0.01 pJ/bit
+# w_cost = 1.5x r_cost
+
+memories:
+  rf_I:
+    size: 1024  # Increased from 32 to store more input activations
+    r_bw: 32
+    w_bw: 32
+    r_cost: 0.8
+    w_cost: 0.8
+    area: 0
+    r_port: 1
+    w_port: 1
+    rw_port: 0
+    latency: 1
+    min_r_granularity: 8
+    min_w_granularity: 8
+    operands: [I1]
+    ports:
+      - fh: w_port_1
+        tl: r_port_1
+    served_dimensions: []
+
+  rf_W: # For MatMul, this will store weights
+    size: 1024  # Increased from 32 to store more weights
+    r_bw: 32
+    w_bw: 32
+    r_cost: 0.8
+    w_cost: 0.8
+    area: 0
+    r_port: 1
+    w_port: 1
+    rw_port: 0
+    latency: 1
+    min_r_granularity: 4
+    min_w_granularity: 4
+    operands: [I2]
+    ports:
+      - fh: w_port_1
+        tl: r_port_1
+    served_dimensions: []
+
+  rf_O:
+    size: 1024  # Increased from 32 to store more output activations
+    r_bw: 32
+    w_bw: 32
+    r_cost: 0.8
+    w_cost: 0.8
+    area: 0
+    r_port: 2
+    w_port: 2
+    rw_port: 0
+    latency: 1
+    min_r_granularity: 16
+    min_w_granularity: 16
+    operands: [O]
+    ports:
+      - fh: w_port_1
+        tl: r_port_1
+        fl: w_port_2
+        th: r_port_2
+    served_dimensions: []
+
+  sram_16GB:
+    # From FLAT paper: 8 Tbit/s on-chip BW
+    size: 17_179_869_184  # 16GB - enough to store LLAMA 2 7B parameters (assuming 4-bit quantization)
+    r_bw: 8192
+    w_bw: 8192
+    r_cost: 8192
+    w_cost: 8192
+    area: 0
+    r_port: 3
+    w_port: 3
+    rw_port: 0
+    latency: 1
+    min_r_granularity: 256
+    min_w_granularity: 256
+    operands: [I1, I2, O]
+    ports:
+      - fh: w_port_1
+        tl: r_port_1
+      - fh: w_port_2
+        tl: r_port_2
+      - fh: w_port_3
+        tl: r_port_3
+        fl: w_port_3
+        th: r_port_3
+    served_dimensions: [D1, D2]
+
+operational_array:
+  input_precision: [32, 32] # Not used
+  multiplier_energy: 1.5
+  multiplier_area: 1 # unit
+  dimensions: [D1, D2]
+  sizes: [256, 256] 

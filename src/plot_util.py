@@ -52,7 +52,9 @@ class PlotCMEMinimal:
 
 class PlotCMEDetailed:
     energy_bars = ["MAC", "RF", "SRAM", "DRAM"]
-    energy_sections = ["MAC", "weight", "act", "act2", "output"]
+    energy_sections = [
+        "MAC", "weight", "act", "act2", "output"
+    ]
     non_weight_layers = [1, 2]  # Indices in `LAYERS_TO_PLOT`
 
     latency_sections = ["Ideal computation", "Spatial stall", "Memory stall"]
@@ -68,11 +70,11 @@ class PlotCMEDetailed:
     @staticmethod
     def cme_to_energy_array_single_group(cme: CME_T, is_weight_layer: bool = True):
         """Energy per memory, per operand. This will return a single group"""
-
         operands = ["W", "I", "O"]  # Same order as `sections`
         data = cme.__jsonrepr__()["outputs"]["energy"]
         result = np.zeros((len(PlotCMEDetailed.energy_bars), len(PlotCMEDetailed.energy_sections)))
         result[0] = [data["operational_energy"]] + (len(PlotCMEDetailed.energy_sections) - 1) * [0]
+        
         for mem_level, _ in enumerate(PlotCMEDetailed.energy_bars[1:]):
             energy_per_op = [PlotCMEDetailed.get_mem_energy(data, op, mem_level) for op in operands]
             if is_weight_layer:

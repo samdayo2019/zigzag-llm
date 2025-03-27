@@ -6,7 +6,7 @@ import numpy as np
 
 from src.config import LLMConfig, QuantConfig
 
-LAYERS_TO_PLOT = ["key_proj", "mul_qk_t", "mul_logits", "feedforward_expand", "feedforward_contract"]
+LAYERS_TO_PLOT = ["key_proj", "mul_qk_t", "mul_logits", "feedforward_expand", "feedforward_contract"] # add key, value, and query projections
 GROUPS = ["Linear proj.", "Attention", "FFN"]
 
 CME_T = TypeVar("CME_T", Any, Any)  # CME type not available here
@@ -48,6 +48,7 @@ def get_cmes_to_plot(cmes: list[CME_T]):
 def get_cmes_full_model(cmes: list[CME_T], model: LLMConfig, stage: Stage = Stage.PREFILL):
     """Generalize the zigzag results (for single layers) to a full LLM
     @param prefill: whether the results are from a prefill or decode phase simulation"""
+
     assert len(cmes) == 5, "These are not the `LAYERS_TO_PLOT`"
     number_of_runs = 1 if stage == Stage.PREFILL else model.decode_size
     return [cme * model.get_post_simulation_multiplier(cme.layer.name) * number_of_runs for cme in cmes]
@@ -56,9 +57,17 @@ def get_cmes_full_model(cmes: list[CME_T], model: LLMConfig, stage: Stage = Stag
 def get_cmes_full_model_from_pickle(pickle_file: str, model: LLMConfig, stage: Stage) -> list[CME_T]:
     with open(pickle_file, "rb") as fp:
         cmes: list[CME_T] = pickle.load(fp)
-
+        
+    # Print all CMEs before filtering
+    print("\nAll CMEs in workload:")
+    for cme in cmes:
+        print(f"- {cme.layer.name}")
+    print(f"Total number of CMEs: {len(cmes)}")
+    
+    # Now filter to only the ones we want to plot
     cmes = get_cmes_to_plot(cmes)
     cmes = get_cmes_full_model(cmes, model, stage)
+    print(f"Total Number of CMEs: {len(cmes)}")
     return cmes
 
 

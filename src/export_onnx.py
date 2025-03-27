@@ -44,12 +44,15 @@ def export_transformer_to_onnx(
     # Add attribute with quantization info, to be used in Zigzag
     onnx_model = onnx.load(path)  # type: ignore
     onnx.checker.check_model(onnx_model)  # type: ignore
+        
     for node in onnx_model.graph.node:
         if node.op_type in ["Add", "MatMul", "Gemm", "Softmax"]:
             add_attribute_to_onnx_node(node, "weight_size", quant_config.weight_bits)
             add_attribute_to_onnx_node(node, "act_size", quant_config.act_bits)
             add_attribute_to_onnx_node(node, "output_size", quant_config.intermediate_output_bits)
-
+        if node.op_type == "Concat":
+            add_attribute_to_onnx_node(node, "act_size", quant_config.act_bits)
+            add_attribute_to_onnx_node(node, "output_size", quant_config.act_bits)
     onnx.save_model(onnx_model, path)  # type: ignore
 
 

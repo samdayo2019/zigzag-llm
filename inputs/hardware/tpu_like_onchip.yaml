@@ -1,0 +1,146 @@
+name: tpu_like
+
+# TPU-like accelerator
+# 256x256 systolic array
+# Weight FIFO, Unified Buffer, and DRAM memory hierarchy
+
+memories:
+  rf_weight:  # weight register file (8-bit per PE)
+    size: 8  # 1 byte per PE
+    r_bw: 8  # Can read 256 weights per cycle (1 per PE)
+    w_bw: 8  # Can write 256 weights per cycle
+    r_cost: 0.8
+    w_cost: 0.8
+    area: 0
+    r_port: 1
+    w_port: 1
+    rw_port: 0
+    latency: 1
+    min_r_granularity: 4  # Read full row/column at once
+    min_w_granularity: 4
+    operands: [I2]  # Weights only
+    ports:
+      - fh: w_port_1
+        tl: r_port_1
+    served_dimensions: []
+
+  rf_psum:  # partial sum accumulator (16-bit per PE)
+    size: 16  # 2 bytes per PE
+    r_bw: 16  # Can read 256 partial sums per cycle
+    w_bw: 16  # Can write 256 partial sums per cycle
+    r_cost: 0.8
+    w_cost: 0.8
+    area: 0
+    r_port: 2  # Need 2 ports for accumulation
+    w_port: 2
+    rw_port: 0
+    latency: 1
+    min_r_granularity: 8  # Read full row/column at once
+    min_w_granularity: 8
+    operands: [O]  # Partial sums only
+    ports:
+      - fh: w_port_1
+        tl: r_port_1
+        fl: w_port_2
+        th: r_port_2
+    served_dimensions: []
+
+  # Weight FIFO/Tile Buffer (64 KiB x 2 for double buffering = 128 KiB)
+  weight_fifo:
+    size: 34_359_738_368  # 16 MiB
+    r_bw: 8192  # Can feed one row/col of weights per cycle
+    w_bw: 8192  # Can receive one row/col of weights per cycle
+    r_cost: 8192
+    w_cost: 8192
+    area: 0
+    r_port: 1
+    w_port: 1
+    rw_port: 0
+    latency: 1
+    min_r_granularity: 256
+    min_w_granularity: 256
+    operands: [I2]  # Weights only
+    ports:
+      - fh: w_port_1
+        tl: r_port_1
+    served_dimensions: [D1, D2]  # Double buffering dimensions
+
+  # Accumulator Buffer (4 MiB) for partial sums
+  accumulator:
+    size: 67_108_864  # 64 MiB
+    r_bw: 8192  # Higher bandwidth for parallel accumulation
+    w_bw: 8192
+    r_cost: 8192
+    w_cost: 8192
+    area: 0
+    r_port: 2  # Need 2 ports for accumulation
+    w_port: 2
+    rw_port: 0
+    latency: 1
+    min_r_granularity: 256
+    min_w_granularity: 256
+    operands: [O]  # Partial sums only
+    ports:
+      - fh: w_port_1
+        tl: r_port_1
+        fl: w_port_2
+        th: r_port_2
+    served_dimensions: [D1, D2]
+
+  # Unified Buffer (64 M) for activations
+  unified_buffer:
+    size: 1_073_741_824  # 1 GiB
+    r_bw: 16384  # High bandwidth to feed array
+    w_bw: 16384
+    r_cost: 8192
+    w_cost: 8192
+    area: 0
+    r_port: 2  # One port each for activations and weights
+    w_port: 2
+    rw_port: 0
+    latency: 1
+    min_r_granularity: 256
+    min_w_granularity: 256
+    operands: [I1, O]  # Activations and weights
+    ports:
+      - fh: w_port_1
+        tl: r_port_1
+      - fh: w_port_2
+        tl: r_port_2
+        fl: w_port_2
+        th: r_port_2
+    served_dimensions: [D1, D2]
+
+  dram:
+    # Virtual DRAM with infinite bandwidth and zero cost
+    size: 1_000_000_000_000  # 1 TB
+    r_bw: 1_000_000_000_000_000_000  # Near-infinite bandwidth
+    w_bw: 1_000_000_000_000_000_000
+    r_cost: 0  # Zero energy cost
+    w_cost: 0
+    area: 0
+    r_port: 0
+    w_port: 0
+    rw_port: 1
+    latency: 0
+    min_r_granularity: 1_000_000_000_000_000_000
+    min_w_granularity: 1_000_000_000_000_000_000
+    operands: [I1, I2, O]
+    ports:
+      - fh: rw_port_1
+        tl: rw_port_1
+      - fh: rw_port_1
+        tl: rw_port_1
+      - fh: rw_port_1
+        tl: rw_port_1
+        fl: rw_port_1
+        th: rw_port_1
+    served_dimensions: [D1, D2]
+
+
+operational_array:
+  input_precision: [32, 32]  # Not used
+  multiplier_energy: 0.04  # Energy per 8-bit MAC operation
+  multiplier_area: 1
+  dimensions: [D1, D2]
+  sizes: [256, 256]  # 256x256 systolic array []

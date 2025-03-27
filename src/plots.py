@@ -1,6 +1,7 @@
 import itertools
 
 import numpy as np
+import matplotlib.pyplot as plt
 
 from src.plot_util import (
     BarPlotter,
@@ -17,16 +18,24 @@ def plot_energy_clean(cmes: list[CME_T], filename: str):
     assert len(cmes) == 5, "Are these the CMEs from `LAYERS_TO_PLOT`?"
 
     bars = PlotCMEDetailed.energy_bars  # ["MAC", "RF", "SRAM", "DRAM"]
-    sections = PlotCMEDetailed.energy_sections  # ["MAC", "weight", "act", "act2", "output"]
+    sections = PlotCMEDetailed.energy_sections  # ["MAC", "weight", "act", "act2", "output", "kv_cache"]
 
     data = PlotCMEDetailed.cmes_to_energy_array_all(cmes)
-    p = BarPlotter(GROUPS, bars, sections, legend_cols=4, ylabel="Energy (pJ)")
+    
+    # Calculate the maximum energy value to set appropriate y-axis limit
+    if len(data.shape) == 2:  # If data is 2D (groups, sections)
+        max_energy = np.max(np.sum(data, axis=1))  # Sum across sections for each group
+    else:  # If data is 3D (groups, bars, sections)
+        max_energy = np.max(np.sum(data, axis=2))  # Sum across sections for each bar
+    ylim = max_energy * 1.1  # Add 10% padding
+
+    p = BarPlotter(GROUPS, bars, sections, legend_cols=4, ylabel="Energy (pJ)", ylim=ylim)
     p.plot(data, filename)
 
 
 def plot_energy_minimal(cmes: list[CME_T], filename: str):
     """`cmes` correspond to `LAYERS_TO_PLOT`"""
-    assert len(cmes) == 5, "Are these the CMEs from `LAYERS_TO_PLOT`?"
+    assert len(cmes) == 8, "Are these the CMEs from `LAYERS_TO_PLOT`?"
 
     bars = [""]
     sections = PlotCMEMinimal.energy_sections  # ["MAC", "RF", "SRAM", "DRAM"]
@@ -92,6 +101,14 @@ def plot_latency_clean(cmes: list[CME_T], filename: str):
     sections = PlotCMEDetailed.latency_sections
 
     data = group_results([PlotCMEDetailed.cme_to_latency_array_single_group(cme) for cme in cmes])
+    
+    # Calculate the maximum latency value to set appropriate y-axis limit
+    if len(data.shape) == 2:  # If data is 2D (groups, sections)
+        max_latency = np.max(np.sum(data, axis=1))  # Sum across sections for each group
+    else:  # If data is 3D (groups, bars, sections)
+        max_latency = np.max(np.sum(data, axis=2))  # Sum across sections for each bar
+    ylim = max_latency * 1.1  # Add 10% padding
+
     p = BarPlotter(
         GROUPS,
         bars,
@@ -102,6 +119,7 @@ def plot_latency_clean(cmes: list[CME_T], filename: str):
         group_name_offset=0,
         group_name_dy=-1,
         ylabel="Latency (cycles)",
+        ylim=ylim
     )
     p.plot(data, filename)
 
@@ -179,7 +197,7 @@ def plot_energy_and_latency(
     ylim_latency: float | None = None,
 ):
     assert all([len(cmes) == 5 for cmes in cmes_all]), "Are these the CMEs from `LAYERS_TO_PLOT`?"
-    assert len(cmes_all) == len(supergroups)
+    assert len(cmes_all) == len(supergroups), "It's the super groups problem!"
 
     # energy_groups = [f"{group}\n{supergroup}" for supergroup, group in itertools.product(supergroups, GROUPS)]
     energy_groups = len(supergroups) * GROUPS
@@ -232,7 +250,7 @@ def plot_energy_and_latency(
     p.plot([energy_data, latency_data], filename)
 
 
-def plot_energy_and_latency_minimal(cmes_all: list[list[CME_T]], groups: list[str], title: str, filename: str):
+def plot_energy_and_latency_minimal(cmes_all: list[list[CME_T]], groups: list[str], title: str, filename: str, ylim_energy: float | None = None, ylim_latency: float | None = None):
     assert all([len(cmes) == 5 for cmes in cmes_all]), "Are these the CMEs from `LAYERS_TO_PLOT`?"
     assert len(cmes_all) == len(groups)
 
@@ -256,7 +274,8 @@ def plot_energy_and_latency_minimal(cmes_all: list[list[CME_T]], groups: list[st
         bar_width=0.9,
         bar_spacing=0,
         group_spacing=0.7,
-        group_name_dy=-3.5,
+        group_name_dy=-6.5,
+        group_name_fontsize=8,
         xtick_rotation=45,
         xtick_fontsize=8,
         ylabel="Energy (pJ)",
@@ -268,11 +287,14 @@ def plot_energy_and_latency_minimal(cmes_all: list[list[CME_T]], groups: list[st
         bar_width=0.9,
         bar_spacing=0,
         group_spacing=0.7,
+        group_name_fontsize=8,
+        group_name_dy=-6.5,
+        xtick_rotation=45,
         xtick_fontsize=8,
         # xtick_labels=list(range(1, ))
         # group_name_offset=0,
-        group_name_dy=-3.5,
         ylabel="Latency (cycles)",
+        ylim=ylim_latency,
     )
 
     p = BarPlotterSubfigures([energy_plotter, latency_plotter], subplot_cols=2, width_ratios=[1, 1], title=title)

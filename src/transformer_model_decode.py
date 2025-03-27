@@ -62,30 +62,51 @@ class MultiHeadAttention(nn.Module):
     def __init__(self, cfg: LLMConfig):
         super().__init__()  # type: ignore
         self.cfg = cfg
-        self.heads = nn.ModuleList([Head(cfg) for _ in range(cfg.num_head)])
+        self.heads = nn.ModuleList([Head(cfg) for _ in range(cfg.num_query_heads)])
 
         # We compute each linear projection as one big MatMul to ensure spatial array utilization
-        self.key_proj = nn.Linear(cfg.embedding_dim, cfg.embedding_dim, bias=False)
+        self.key_proj = nn.Linear(cfg.embedding_dim, cfg.embedding_dim//cfg.group_size, bias=False)
         self.query_proj = nn.Linear(cfg.embedding_dim, cfg.embedding_dim, bias=False)
-        self.value_proj = nn.Linear(cfg.embedding_dim, cfg.embedding_dim, bias=False)
+        self.value_proj = nn.Linear(cfg.embedding_dim, cfg.embedding_dim//cfg.group_size, bias=False)
 
         # NOTE  `num_head * head_size` must equal `embedding_dim`
-        self.out_proj = nn.Linear(cfg.num_head * cfg.head_size, cfg.embedding_dim, bias=False)
+        self.out_proj = nn.Linear(cfg.num_query_heads * cfg.head_size, cfg.embedding_dim, bias=False)
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x: Tensor):
         # `cfg.num_head` might be changed to shorten simulation time -> recompute the correct dimension
         num_head_tensors = self.cfg.embedding_dim // self.cfg.head_size
+        num_kv_tensors = num_head_tensors // self.cfg.group_size
 
-        # (B, 1, num_head_tensors, d_h)
-        key: Tensor = self.key_proj(x).reshape(self.cfg.batch_size, 1, num_head_tensors, self.cfg.head_size)
-        query: Tensor = self.query_proj(x).reshape(self.cfg.batch_size, 1, num_head_tensors, self.cfg.head_size)
-        value: Tensor = self.value_proj(x).reshape(self.cfg.batch_size, 1, num_head_tensors, self.cfg.head_size)
-
-        out = torch.cat(
-            [head(key[:, :, idx, :], query[:, :, idx, :], value[:, :, idx, :]) for idx, head in enumerate(self.heads)],
-            dim=-1,
+        # (B, L, num_head_tensors, d_h)
+        key: Tensor = self.key_proj(x).reshape(
+            self.cfg.batch_size, 1, num_kv_tensors, self.cfg.head_size
         )
+        # Simulate writing key to memory
+        key = key.to(device=device)
+
+        value: Tensor = self.value_proj(x).reshape(
+            self.cfg.batch_size, 1, num_kv_tensors, self.cfg.head_size
+        )
+        # Simulate writing value to memory
+        value = value.to(device=device)
+        
+        query: Tensor = self.query_proj(x).reshape(
+            self.cfg.batch_size, 1, num_head_tensors, self.cfg.head_size
+        )
+
+        query_grouped = query.view(
+            self.cfg.batch_size, 1, num_kv_tensors, num_head_tensors//num_kv_tensors, self.cfg.head_size
+        )
+
+        outputs = [
+            head(key[:, :, i // (num_head_tensors //num_kv_tensors), :], 
+                          query_grouped[:, :, i // (num_head_tensors //num_kv_tensors), i % (num_head_tensors //num_kv_tensors), :],
+                          value[:, :, i // (num_head_tensors //num_kv_tensors), :]
+                          ) for i, head in enumerate(self.heads)
+        ]
+
+        out = torch.cat(outputs, dim=-1)
         out = self.out_proj(out)
         out = self.dropout(out)
         return out

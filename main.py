@@ -6,7 +6,7 @@ import os
 import sys
 
 sys.path.append(os.getcwd())
-from src.config import OPT_125M, W32A32
+from src.config import OPT_125M, W32A32, W16A16, W8A8, LLAMA_3_8B, LLAMA_3_70B, LLAMA_3_405B, LLAMA_3_3T, LLAMA_2_7B
 from src.export_onnx import Stage
 from src.plots import plot_energy_and_latency
 from src.simulation import run_simulation
@@ -16,12 +16,12 @@ from src.util import (
     get_experiment_id,
 )
 
-model = OPT_125M
+model = LLAMA_3_8B
 model.batch_size = 1
 model.prefill_size = 256
 model.decode_size = 256
-quant = W32A32
-accelerator = "generic_array_32b"
+quant = W8A8
+accelerator = "tpu_like_onchip"
 mapping_path = "inputs/mapping/weight_unrolled_256.yaml"
 out_path = "outputs/main"
 
@@ -39,6 +39,7 @@ def run_experiment():
 
 
 if __name__ == "__main__":
+    print("Running experiment...")
     run_experiment()
 
     cmes_per_group: list[list[CME_T]] = []
