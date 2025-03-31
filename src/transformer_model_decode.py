@@ -31,7 +31,6 @@ class Head(nn.Module):
         self.mul_logits_v = Matmul()
 
         # in Pytorch convention a variable that's not a parameter of the model is called a buffer
-        self.register_buffer("tril", torch.tril(torch.ones(cfg.decode_idx + 1, cfg.decode_idx + 1)))
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, key_token: Tensor, query_token: Tensor, value_token: Tensor):

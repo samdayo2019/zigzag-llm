@@ -53,6 +53,7 @@ def export_transformer_to_onnx(
         if node.op_type == "Concat":
             add_attribute_to_onnx_node(node, "act_size", quant_config.act_bits)
             add_attribute_to_onnx_node(node, "output_size", quant_config.act_bits)
+            add_attribute_to_onnx_node(node, "weight_size", quant_config.act_bits)
     onnx.save_model(onnx_model, path)  # type: ignore
 
 

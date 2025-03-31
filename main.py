@@ -17,11 +17,11 @@ from src.util import (
 )
 
 model = LLAMA_3_8B
-model.batch_size = 1
-model.prefill_size = 256
-model.decode_size = 256
+model.batch_size = 32
+model.prefill_size = 1024
+model.decode_size = 1024
 quant = W8A8
-accelerator = "tpu_like_onchip"
+accelerator = "tpu_8b_hbm"
 mapping_path = "inputs/mapping/weight_unrolled_256.yaml"
 out_path = "outputs/main"
 
