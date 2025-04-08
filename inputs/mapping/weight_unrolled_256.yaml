@@ -2,7 +2,7 @@
   core_allocation: [1]
   spatial_mapping:
     D1:
-      - K, 256
+      - K, 128
     D2:
-      - C, 256
+      - C, 128
  

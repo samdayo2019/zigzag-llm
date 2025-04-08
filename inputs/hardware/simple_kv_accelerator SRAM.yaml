@@ -1,0 +1,147 @@
+name: simple_kv_accelerator
+
+# Simple accelerator with three distinct memories:
+# 1) Weight memory (I2)
+# 2) Activation memory (I1)
+# 3) KV-cache memory (Z_I/Z_O)
+
+# TPUv4i specs
+# 1000MHz (1GHz)
+# 128x128 SA
+# Varying bandwidths for different memories
+# Cycle = 1e-9 second
+
+# 128x128 SA
+# 128KB KV-cache
+# 32KB activation
+# 32KB weight
+
+memories:
+  rf_I:
+    size: 8
+    r_bw: 8
+    w_bw: 8
+    r_cost: 0.021
+    w_cost: 0.021
+    area: 0
+    r_port: 1
+    w_port: 1
+    rw_port: 0
+    latency: 1
+    min_r_granularity: 8
+    min_w_granularity: 8
+    operands: [I1]
+    ports:
+      - fh: w_port_1
+        tl: r_port_1
+    served_dimensions: []
+
+  rf_W:
+    size: 8
+    r_bw: 8
+    w_bw: 8
+    r_cost: 0.021
+    w_cost: 0.021
+    area: 0
+    r_port: 2
+    w_port: 2
+    rw_port: 0
+    latency: 1
+    min_r_granularity: 8
+    min_w_granularity: 8
+    operands: [I2, Z_I]
+    ports:
+      - fh: w_port_1
+        tl: r_port_1
+      - fh: w_port_2
+        tl: r_port_2
+    served_dimensions: []
+
+  rf_O:
+    size: 16
+    r_bw: 16
+    w_bw: 16
+    r_cost: 0.042
+    w_cost: 0.042
+    area: 0
+    r_port: 2
+    w_port: 2
+    rw_port: 0
+    latency: 1
+    min_r_granularity: 8
+    min_w_granularity: 8
+    operands: [O, Z_O]
+    ports:
+      - th: r_port_1
+        fl: w_port_1
+      - th: r_port_2
+        fl: w_port_2
+    served_dimensions: []
+
+
+  # Weight memory (I2)
+  weight_mem: # High VT -> 24.7GB/s at 771.6 MHz (32B per cycle) --> 24B per cycle at 1GHz
+    size: 536_870_912  # 512MB
+    r_bw: 275 # 32GiB/s at 1GHz
+    w_bw: 275 # 32GiB/s at 1GHz
+    r_cost: 57.7 # 0.21pJ/bit with 34.35B/cycle
+    w_cost: 57.7 # 0.21pJ/bit with 34.35B/cycle
+    area: 0
+    r_port: 1
+    w_port: 0
+    rw_port: 0
+    latency: 1
+    min_r_granularity: 8
+    min_w_granularity: 8
+    operands: [I2]
+    ports:
+      - tl: r_port_1 # read to SA PE weight register file
+    served_dimensions: [D1, D2]
+
+  # Activation memory (I1)
+  act_mem: # low VT -> 6.8GB/s at 211.0 MHz (32B per cycle) --> 6B per cycle at 1GHz
+    size: 536_870_912  # 512MB
+    r_bw: 275 # 32GiB/s at 1GHz
+    w_bw: 275 # 32GiB/s at 1GHz
+    r_cost: 57.7 # 0.21pJ/bit with 34.35B/cycle
+    w_cost: 57.7 # 0.21pJ/bit with 34.35B/cycle
+    area: 0
+    r_port: 0
+    w_port: 0
+    rw_port: 1
+    latency: 1
+    min_r_granularity: 8
+    min_w_granularity: 8
+    operands: [I1, O]
+    ports:
+      - tl: rw_port_1 # read to SA PE activation register file (I1)
+      - fl: rw_port_1 # write from SA PE output register file (O)
+    served_dimensions: [D1, D2]
+
+  # KV-cache memory (Z_I/Z_O)
+  kv_mem: # Mid VT -> 12.9GB/s at 403.0 MHz (32B per cycle) --> 12B per cycle at 1GHz
+    size: 134_217_728  # 128MB - larger to accommodate KV cache
+    r_bw: 275 # 32GiB/s at 1GHz
+    w_bw: 275 # 32GiB/s at 1GHz
+    r_cost: 57.7 # 0.21pJ/bit with 34.35B/cycle
+    w_cost: 57.7 # 0.21pJ/bit with 34.35B/cycle
+    area: 0
+    r_port: 0
+    w_port: 0
+    rw_port: 1
+    latency: 1
+    min_r_granularity: 8
+    min_w_granularity: 8
+    operands: [Z_I, Z_O]
+    ports:
+      - tl: rw_port_1 # to SA PE KV cache register file (Z_I) 
+      - fl: rw_port_1 # from SA PE KV cache register file (Z_O)
+    served_dimensions: [D1, D2]
+
+
+operational_array:
+  input_precision: [8, 8]
+  multiplier_energy: 0.07 #pJ
+  multiplier_area: 1 # unit
+  dimensions: [D1, D2]
+  sizes: [128, 128]  # 128x128 systolic array 

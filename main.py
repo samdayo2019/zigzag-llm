@@ -6,7 +6,7 @@ import os
 import sys
 
 sys.path.append(os.getcwd())
-from src.config import OPT_125M, W32A32, W16A16, W8A8, LLAMA_3_8B, LLAMA_3_70B, LLAMA_3_405B, LLAMA_3_3T, LLAMA_2_7B
+from src.config import OPT_125M, W32A32, W16A16, W8A8, W8A16, LLAMA_3_8B, LLAMA_3_70B, LLAMA_3_405B, LLAMA_3_3T, LLAMA_2_7B
 from src.export_onnx import Stage
 from src.plots import plot_energy_and_latency
 from src.simulation import run_simulation
@@ -16,12 +16,12 @@ from src.util import (
     get_experiment_id,
 )
 
-model = LLAMA_3_8B
-model.batch_size = 32
+model = OPT_125M
+model.batch_size = 1
 model.prefill_size = 1024
 model.decode_size = 1024
 quant = W8A8
-accelerator = "tpu_8b_hbm"
+accelerator = "generic_array_32b"
 mapping_path = "inputs/mapping/weight_unrolled_256.yaml"
 out_path = "outputs/main"
 

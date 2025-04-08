@@ -33,7 +33,15 @@ class PlotCMEMinimal:
     @staticmethod
     def cme_to_energy_array_single_bar(cme: CME_T) -> ARRAY_T:
         """Energy per memory, summed up for all operands"""
-        operands = ["W", "I", "O"]
+        is_kv_proj = "key_proj" in cme.layer.name or "value_proj" in cme.layer.name
+        is_kv_mul = "mul_qk_t" in cme.layer.name or "mul_logits" in cme.layer.name
+        if is_kv_proj: 
+            operands = ["W", "I", "Z_O"]
+        elif is_kv_mul:
+            operands = ["Z_I", "I", "O"]
+        else:
+            operands = ["W", "I", "O"]       
+            
         data = cme.__jsonrepr__()["outputs"]["energy"]
         result = [data["operational_energy"]]
         result += [
@@ -53,8 +61,8 @@ class PlotCMEMinimal:
 class PlotCMEDetailed:
     energy_bars = ["MAC", "RF", "SRAM", "DRAM"]
     energy_sections = [
-        "MAC", "weight", "act", "act2", "output"
-    ]
+        "MAC", "weight", "act", "output", "kv_cache_r", "kv_cache_w",
+    ] # group act, act2, and output together into activations
     non_weight_layers = [1, 2]  # Indices in `LAYERS_TO_PLOT`
 
     latency_sections = ["Ideal computation", "Spatial stall", "Memory stall"]
@@ -62,33 +70,59 @@ class PlotCMEDetailed:
     @staticmethod
     def get_mem_energy(data: Any, op: str, mem_level: int):
         # There should be 3 mem levels. Insert 0 at lowest level otherwise
+        # print(f"OP: {op}, MEM_LEVEL: {mem_level}")
+        # print(f"Data: {data}")
         energy_per_level = data["memory_energy_breakdown_per_level"][op]
-        if len(energy_per_level) == 2:
+        # print(f"Energy per level pre: {energy_per_level}, op: {op}, mem_level: {mem_level}")
+        if len(energy_per_level) == 1:
+            energy_per_level = [0, 0] + energy_per_level
+        elif len(energy_per_level) == 2:
             energy_per_level = [0] + energy_per_level
+        # print(f"Energy per level post: {energy_per_level}, op: {op}, mem_level: {mem_level}")
         return energy_per_level[mem_level]
 
     @staticmethod
     def cme_to_energy_array_single_group(cme: CME_T, is_weight_layer: bool = True):
         """Energy per memory, per operand. This will return a single group"""
-        operands = ["W", "I", "O"]  # Same order as `sections`
+        # operands = ["W", "I", "O"]  # Same order as `sections`
+        # print(f"Layer name: {cme.layer.name}")
+        is_kv_proj = "key_proj" in cme.layer.name or "value_proj" in cme.layer.name
+        is_kv_mul = "mul_qk_t" in cme.layer.name or "mul_logits" in cme.layer.name
+        if is_kv_proj: 
+            operands = ["W", "I", "Z_O"]
+        elif is_kv_mul:
+            operands = ["Z_I", "I", "O"]
+        else:
+            operands = ["W", "I", "O"]
+
         data = cme.__jsonrepr__()["outputs"]["energy"]
         result = np.zeros((len(PlotCMEDetailed.energy_bars), len(PlotCMEDetailed.energy_sections)))
         result[0] = [data["operational_energy"]] + (len(PlotCMEDetailed.energy_sections) - 1) * [0]
-        
+        # print(f"PlotCMEDetailed.energy_bars: {PlotCMEDetailed.energy_bars[1:]}")
         for mem_level, _ in enumerate(PlotCMEDetailed.energy_bars[1:]):
+            # print(f"Is weight layer: {is_weight_layer}")
             energy_per_op = [PlotCMEDetailed.get_mem_energy(data, op, mem_level) for op in operands]
+            # print(f"Energy per op: {energy_per_op}, cme: {cme}, weight layer: {is_weight_layer}, mem_level: {mem_level}, kv_proj: {is_kv_proj}")
             if is_weight_layer:
-                # Put the energy for `W` at label `weight`, set `act2` to 0
-                result[mem_level + 1] = [0] + energy_per_op[:2] + [0, energy_per_op[2]]
-            else:
-                # Put the energy for `W` at label `act2`, set `weight` to 0
-                result[mem_level + 1] = [0, 0, energy_per_op[1], energy_per_op[0], energy_per_op[2]]
-
+                if is_kv_proj:
+                    # Put the energy for 'W' at label 'weight', put the energy for 'I' at label 'activations',
+                    # put the energy for 'Z_O' at label 'kv_cache'
+                    result[mem_level + 1] = [0] + [energy_per_op[0], energy_per_op[1], 0, 0, energy_per_op[2]]
+                else:     
+                    # Put the energy for `W` at label `weight`, add the energy for `I` and `Z_O` at label `activations`, 
+                    # set the energy for `kv_cache` to 0
+                    result[mem_level + 1] = [0] + [energy_per_op[0], energy_per_op[1], energy_per_op[2], 0, 0]
+            elif is_kv_mul:
+                # Put the energy for `Z_I` at label `weight`, put the energy for `I` at label `activations`,
+                # put the energy for `O` at label `kv_cache`
+                result[mem_level + 1] = [0] + [0, energy_per_op[1],  energy_per_op[2], energy_per_op[0], 0]
+        # print(f"Result: {result}")
         return result
 
     @staticmethod
     def cmes_to_energy_array_all(cmes: list[CME_T]):
-        return group_results(
+        # print(f"CMEs: {cmes}")  
+        output =  group_results(
             [
                 PlotCMEDetailed.cme_to_energy_array_single_group(
                     cme, is_weight_layer=idx not in PlotCMEDetailed.non_weight_layers
@@ -96,12 +130,15 @@ class PlotCMEDetailed:
                 for idx, cme in enumerate(cmes)
             ]
         )
+        # print(f"Output: {output}")
+        return output
 
     @staticmethod
     def cme_to_latency_array_single_bar(cme: CME_T):
         """Latency per category.
         Shape = (len(sections))"""
         # Hard-copied from zigzag `plot_cme`
+        # print(f"Latency CME: {cme}")
         result = np.array(
             [
                 cme.ideal_cycle,  # Ideal computation

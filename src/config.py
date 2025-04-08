@@ -56,7 +56,7 @@ class LLMConfig:
         cfg = deepcopy(self)
         # cfg.num_layer = 1
         cfg.num_layer = 1
-        # cfg.num_query_heads = 1  # Keep the original `head_size`!
+        cfg.num_query_heads = 1  # Keep the original `head_size`!
         # cfg.num_query_heads = cfg.num_query_heads // 2
         # cfg.num_kv_heads = 1
         # cfg.num_kv_heads = cfg.num_kv_heads // 2
@@ -95,6 +95,7 @@ class QuantConfig:
 W1A8 = QuantConfig(1, 8, 16)
 W4A8 = QuantConfig(4, 8, 16)
 W8A8 = QuantConfig(8, 8, 16)
+W8A16 = QuantConfig(8, 16, 16)
 W4A16 = QuantConfig(4, 16, 16)
 W1A32 = QuantConfig(1, 32, 32)
 W16A32 = QuantConfig(16, 32, 32)

@@ -19,15 +19,15 @@ from src.util import (
     get_experiment_id,
 )
 
-model = LLAMA_3_8B
+model = OPT_125M
 quant = W8A8
 model.prefill_size = 256
 model.decode_size = 256
 model.batch_size = 1
-accelerators = ["generic_array_32b", "generic_array_32b_onchip", "tpu_like", "tpu_like_onchip"]
+accelerators = ["simple_kv_accelerator", "simple_kv_accelerator low", "simple_kv_accelerator SRAM"]
 # accelerators = ["generic_array_32b"]
 mapping_path = "inputs/mapping/weight_unrolled_256.yaml"
-out_path = "outputs/exp_compare_arch_vs_TPU_onchip_new"
+out_path = "outputs/athena_results"
 
 
 def run_experiment():
@@ -53,7 +53,7 @@ if __name__ == "__main__":
         cmes_full_model = get_cmes_full_model_from_pickle(pickle_filename, model, stage)
         cmes_per_arch.append(cmes_full_model)
 
-    groups = ["Generic\nprefill", "Generic\ndecode", "On-chip\nprefill", "On-chip\ndecode", "TPU-like\nprefill", "TPU-like\ndecode", "TPU-like\nOn-chip\nprefill", "TPU-like\nOn-chip\ndecode"]
+    groups = ["MultiVT\nprefill", "MultiVT\ndecode", "StandardGC\nprefill", "StandardGC\ndecode", "SRAM\nprefill", "SRAM\ndecode"]
 
     plot_energy_and_latency_minimal(
         cmes_per_arch,

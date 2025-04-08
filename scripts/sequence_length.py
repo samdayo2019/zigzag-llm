@@ -8,7 +8,7 @@ import sys
 from copy import deepcopy
 
 sys.path.append(os.getcwd())
-from src.config import LLAMA_2_7B, W4A16, LLMConfig
+from src.config import LLAMA_2_7B, W4A16, W8A8,LLMConfig
 from src.plots import (
     plot_energy_and_latency,
 )
@@ -20,8 +20,8 @@ from src.util import (
 )
 
 models = [LLAMA_2_7B]
-quant = W4A16
-accelerators = ["generic_array_edge_16b"]
+quant = W8A8
+accelerators = ["generic_array_32b"]
 mapping_path = "inputs/mapping/weight_unrolled_256.yaml"
 out_path = "outputs/sequence_length"
 
